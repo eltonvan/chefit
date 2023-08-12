@@ -4,19 +4,19 @@ from django.urls import reverse_lazy
 from django.views import generic
 from .models import FitnessPlan, Customer
 from django.contrib.auth import authenticate, login
-from django.contrib.auth.decorators import login_required , user_passes_test
+from django.contrib.auth.decorators import login_required, user_passes_test
 import stripe
-from django.http import HttpResponse , Http404
+from django.http import HttpResponse
+from .config import API_KEY
 
-stripe.api_key = "sk_test_51Ncx95CnWLQdzz97HnfPSThdzrubVLt7pv7WPWxEj6ZDsiW5EZT66ablAZuvPPpEV1jSFcjcIi6KEhfDj5bg6gCo007haMjRjz"
+stripe.api_key = API_KEY
+
 
 @user_passes_test(lambda u: u.is_superuser)
 def updateaccounts(request):
     customers = Customer.objects.all()
     for customer in customers:
-        subscription = stripe.Subscription.retrieve(
-            customer.stripe_subscription_id
-        )
+        subscription = stripe.Subscription.retrieve(customer.stripe_subscription_id)
         if subscription.status != "active":
             customer.membership = False
         else:
@@ -25,9 +25,11 @@ def updateaccounts(request):
         customer.save()
     return HttpResponse("completed")
 
+
 def home(request):
     plans = FitnessPlan.objects
     return render(request, "plans/home.html", {"plans": plans})
+
 
 @login_required
 def count(request):
@@ -58,7 +60,6 @@ def join(request):
 
 @login_required
 def checkout(request):
-
     try:
         if request.user.customer.membership:
             return redirect("settings")
@@ -142,8 +143,10 @@ def checkout(request):
 def settings(request):
     membership = False
     cancel_at_period_end = False
-    if request.method == 'POST':
-        subscription = stripe.Subscription.retrieve(request.user.customer.stripe_subscription_id)
+    if request.method == "POST":
+        subscription = stripe.Subscription.retrieve(
+            request.user.customer.stripe_subscription_id
+        )
         subscription.cancel_at_period_end = True
         request.user.customer.cancel_at_period_end = True
         cancel_at_period_end = True
@@ -152,12 +155,16 @@ def settings(request):
     else:
         try:
             if request.user.customer.membership:
-                membership = True   
+                membership = True
             if request.user.customer.cancel_at_period_end:
                 cancel_at_period_end = True
         except Customer.DoesNotExist:
             membership = False
-    return render(request, "registration/settings.html", {"membership": membership, "cancel_at_period_end": cancel_at_period_end})
+    return render(
+        request,
+        "registration/settings.html",
+        {"membership": membership, "cancel_at_period_end": cancel_at_period_end},
+    )
 
 
 class SignUp(generic.CreateView):
